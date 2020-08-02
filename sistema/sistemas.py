@@ -49,10 +49,12 @@ def altera():
     if p is not None:
         nome = agenda[p][0]
         telefone = agenda[p][1]
+        email = agenda[p][2]
         print('Encontrado:')
-        mostra_dados(nome, telefone)
+        mostra_dados(nome, telefone, email)
         nome = pede_nome()
         telefone = pede_telefone()
+        email = pede_email()
         confirma = str(input('Deseja mesmo continuar esta alteração? [S/N]: ')).lower()
         if confirma in "Nn":
             print('Cancelando!')
