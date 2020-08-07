@@ -43,7 +43,7 @@ class ListaÚnica:
 		return i >= 0 and i < len(self.lista)
 	def adiciona(self, elem):
 		if self.pesquisa(elem) == -1:
-		self.lista.append(elem)
+			self.lista.append(elem)
 	def remove(self, elem):
 		self.lista.remove(elem)
 	def pesquisa(self, elem):
