@@ -335,3 +335,146 @@ class ListaÚnica:
 					app.lê(sys.argv[1])
 				app.execute()
 				
+
+class DBListaÚnica(ListaÚnica):
+    def __init__(self, elem_class):
+        super().__init__(elem_class)
+        self.apagados = []
+    def remove(self, elem):
+        if elem.id is not None:
+            self.apagados.append(elem.id)
+        super().remove(elem)
+    def limpa(self):
+        self.apagados = []
+
+class DBNome(Nome):
+	def __init__(self, nome, id_=None):
+		super().__init__(nome)
+		self.id = id_
+class DBTipoTelefone(TipoTelefone):
+	def __init__(self, id_, tipo):
+		super().__init__(tipo)
+		self.id = id_
+class DBTelefone(Telefone):
+	def __init__(self, número, tipo=None, id_=None, id_nome=None):
+		super().__init__(número, tipo)
+		self.id = id_
+		self.id_nome = id_nome
+class DBTelefones(DBListaÚnica):
+	def __init__(self):
+		super().__init__(DBTelefone)
+class DBDadoAgenda:
+	def __init__(self, nome):
+		self.nome = nome
+		self.telefones = DBTelefones()
+	@property
+	def nome(self):
+		return self.__nome
+	@nome.setter
+	def nome(self, valor):
+		if not isisntance(type(valor), DBNome):
+			raise TypeError("nome deve ser uma instância da classe DBNome")
+		self.__nome = valor
+	def pesquisaTelefone(self, telefone):
+	posição = self.telefones.pesquisa(DBTelefone(telefone))
+	if posição == -1:
+		return None
+	else:
+		return self.telefones[posição]
+
+class DBAgenda:
+	def __init__(self, banco):
+		self.tiposTelefone = DBTiposTelefone()
+		self.banco = banco
+		novo = not os.path.isfile(banco)
+		self.conexão = sqlite3.connect(banco)
+		self.conexão.row_factory = sqlite3.Row
+		if novo:
+			self.cria_banco()
+		self.carregaTipos()
+	def carregaTipos(self):
+		for tipo in self.conexão.execute("select * from tipos"):
+			id_ = tipo['id']
+			descrição = tipo['descrição']
+			self.tiposTelefone.adiciona(DBTipoTelefone(Id_, descrição))
+	def cria_banco(self):
+		self.conexão.executescript(BANCO)
+	def pesquisaNome(self, nome):
+		if not isinstance(nome, DBNome):
+			raise TypeError("nome deve ser do tipo DBNome")
+		achado = self.conexão.execute(""" select count(*) from nomes where nome = ?""", (nome.nome,)).fetchone()
+		if achado[0] > 0:
+			return self.carrega_por_nome(nome)
+		else:
+			return None
+	def carrega_por_id(self, id):
+		consulta = self.conexão.execute("select * from nomes where id = ?", (id,))
+		return self.carrega(consulta.fetchone())
+	def carrega_por_nome(self, nome):
+		consulta = self.conexão.execute("select * from nomes where nome = ?", (nome.nome,))
+		return self.carrega(consulta.fetchone())
+	def carrega(self, consulta):
+		if consulta is None:
+			return None
+		novo = DBDadoAgenda(DBNome(consulta["nome"], consulta["id"]))
+		for telefone in self.conexão.execute("select * from telefones where id_nome = ?", (novo.nome.id,)):
+			ntel = DBTelefone(telefone["número"], None, telefone["id"], telefone["id_nome"])
+		for tipo in self.tiposTelefone:
+			if tipo.id == telefone["id_tipo"]:
+				ntel.tipo = tipo 
+				break
+		novo.telefones.adiciona(ntel)
+		return novo
+	def lista(self):
+		consulta = self.conexão.execute("select * from nomes order by nome")
+		for registro in consulta:
+			yield self.carrega(registro)
+	
+def novo(self, registro):
+	try:
+		cur = self.conexão.cursor()
+		cur.execute("insert into nomes(nome) values (?)", (str(registro.nome),))
+		registro.nome.id = cur.lastrowid
+		for telefone in registro.telefones:
+			cur.execute('''insert into telefones(número, id_tipo, id_nome) values (?,?,?)
+			''', (telefone.número, telefone.tipo.id, registro.nome.id))
+			telefone.id = cur.lastrowid
+		self.conexão.commit()
+	except Exception:
+		self.conexão.rollback()
+		raise
+	finally:
+		cur.close()
+
+def atualiza(self, registro):
+	try:
+		cur = self.conexão.cursor()
+		cur.execute("update nomes set nome = ? where id = ?", (str(registro.nome), registro.nome.id))
+		for telefone in registro.telefones:
+			if telefone.id is None:
+				cur.execute("""insert into telefones(número, id_tipo, id_nome) values (?,?,?)""", (telefone.número, telefone.tipo.id, registro.nome.id))
+				telefone.id = cur.lastrowid
+			else:
+				cur.execute("""update telefones set número = ?, id_tipo = ?, id_nome = ? where id = ?""", (telefone.número, telefone.tipo.id, registro.nome.id, telefone.id))
+		for apagado in registro.telefones.apagados:
+			cur.execute("delete from telefones where id = ?", (apagado,))
+		self.conexão.commit()
+		registro.telefones.limpa()
+	except Exception:
+		self.conexão.rollback()
+		raise
+	finally:
+		cur.close()
+
+def apaga(self, registro):
+	try:
+		cur = self.conexão.cursor()
+		cur.execute("delete from telefones where id_nome = ?", (registro.nome.id,))
+		cur.execute("delete from nomes where id = ?", (registro.nome.id,))
+		self.conexão.commit()
+	except Exception():
+		self.conexão.rollback()
+		raise
+	finally:
+		cur.close()
+	
